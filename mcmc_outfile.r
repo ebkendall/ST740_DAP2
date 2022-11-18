@@ -5,6 +5,9 @@ library(latex2exp)
 library(LaplacesDemon, quietly=T)
 library(evd)
 
+args <- commandArgs(TRUE)
+mod_num = as.numeric(args[1])
+
 # Size of posterior sample from mcmc chains
 n_post = 5000
 # Step number at which the adaptive tuning scheme was frozen
@@ -31,11 +34,19 @@ chain_list = vector(mode = "list", length = length(index_seeds))
 ind = 0
 
 for(seed in index_seeds){
-  file_name = paste0('Model_out/mcmc_out_',toString(seed),'.rda')
+  file_name = paste0('Model_out/mcmc_out_mod', mod_num, '_', toString(seed),'.rda')
   if (file.exists(file_name)) {
     load(file_name)
     ind = ind + 1
     print(paste0(ind, ": ", file_name))
+    
+    # Geweke diagnostic information ------------------------------------
+    diagnostic_res = Geweke.Diagnostic(mcmc_out$chain[18000:19000,])
+    print(paste0(length(which(is.nan(diagnostic_res))), " of the ", ncol(mcmc_out$chain), 
+                 " parameters lead to NaN"))
+    diagnostic_res = diagnostic_res[!is.nan(diagnostic_res)]
+    print(mean(abs(diagnostic_res) < 2))
+    
     
     chain_list[[ind]] = mcmc_out$chain[index_post,]
     rm(mcmc_out)
@@ -45,7 +56,7 @@ for(seed in index_seeds){
 stacked_chains = do.call( rbind, chain_list)
 # png(paste0('Plots/trace_plot_dap2_Mi0.png'), width = 1200, height = 1200)
 # par(mfcol=c(4, 3))
-pdf(paste0('Plots/trace_plot_FINAL.pdf'))
+pdf(paste0('Plots/trace_plot_mod', mod_num, '.pdf'))
 par(mfrow=c(3, 2))
 lab_ind = 0
 for(r in c(1:2, par_index$theta[1:130])) {
@@ -65,13 +76,6 @@ for(r in c(1:2, par_index$theta[1:130])) {
   abline( h=parMean, col='purple', lwd=2, lty=2)
 }
 dev.off()
-
-# # Geweke diagnostic information -----------------------------------------------
-# for (i in 1:3) {
-#   load(paste0('Model_out/post_mcmc_out_dev_FINAL', i, '_2.rda'))
-#   diagnostic_res = Geweke.Diagnostic(mcmc_out$chain[11000:20000,])
-#   print(mean(abs(diagnostic_res) < 2))
-# }
 
 # # Summary plots for the posterior ---------------------------------------------
 # library(ggplot2)

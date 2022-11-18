@@ -9,8 +9,8 @@ mcmc_routine = function(Y_mat, X, par, par_index, steps, burnin, n, m, alpha){
     
     chain = matrix(0, nrow = steps, ncol = length(par))
     
-    group = list(c(par_index$M_i[1:30]), c(par_index$M_i[31:60]),
-                 c(par_index$M_i[61:90]), c(par_index$M_i[91:112]))
+    group = list(c(par_index$M_i[1:30], par_index$M_i[31:60],
+                   par_index$M_i[61:90], par_index$M_i[91:112]))
     n_group = length(group)
     
     pcov = list();	for(j in 1:n_group)  pcov[[j]] = diag(length(group[[j]]))
@@ -27,7 +27,7 @@ mcmc_routine = function(Y_mat, X, par, par_index, steps, burnin, n, m, alpha){
     
     # Hyperparameter initialization -------------------------------------------
     a = b = 1
-    mean_mu = 0
+    mean_mu = par[par_index$mu]
     s2 = 1000
     
     # Begin the MCMC algorithm -------------------------------------------------
@@ -51,68 +51,68 @@ mcmc_routine = function(Y_mat, X, par, par_index, steps, burnin, n, m, alpha){
         
         chain[ttt, ] = par
         # Metropolis step ------------------------------------------------------
-        # for(j in 1:n_group){
-        #     
-        #     # Propose an update
-        #     ind_j = group[[j]]
-        #     proposal = par
-        #     proposal[ind_j] = rmvnorm( n=1, mean=par[ind_j],sigma=pcov[[j]]*pscale[j])
-        #     
-        #     # Compute the log density for the proposal
-        #     log_post = fn_log_post(proposal, par_index, m, n, alpha)
-        #     
-        #     # Only propose valid parameters during the burnin period
-        #     if(ttt < burnin){
-        #         while(!is.finite(log_post)){
-        #             print('bad proposal')
-        #             proposal = par
-        #             proposal[ind_j] = rmvnorm( n=1, mean=par[ind_j],
-        #                                        sigma=pcov[[j]]*pscale[j])
-        #             log_post = fn_log_post(proposal, par_index, m, n, alpha)
-        #         }
-        #     }
-        #     
-        #     # Evaluate the Metropolis-Hastings ratio
-        #     if( log_post - log_post_prev > log(runif(1,0,1)) ){
-        #         log_post_prev = log_post
-        #         par[ind_j] = proposal[ind_j]
-        #         accept[j] = accept[j] +1
-        #     }
-        #     chain[ttt,ind_j] = par[ind_j]
-        #     
-        #     # Proposal tuning scheme ------------------------------------------------
-        #     if(ttt < burnin){
-        #         # During the burnin period, update the proposal covariance in each step
-        #         # to capture the relationships within the parameters vectors for each
-        #         # transition.  This helps with mixing.
-        #         if(ttt == 100)  pscale[j] = 1
-        #         
-        #         if(100 <= ttt & ttt <= 2000){
-        #             temp_chain = chain[1:ttt,ind_j]
-        #             pcov[[j]] = cov(temp_chain[ !duplicated(temp_chain),, drop=F])
-        #             
-        #         } else if(2000 < ttt){
-        #             temp_chain = chain[(ttt-2000):ttt,ind_j]
-        #             pcov[[j]] = cov(temp_chain[ !duplicated(temp_chain),, drop=F])
-        #         }
-        #         if( sum( is.na(pcov[[j]]) ) > 0)  pcov[[j]] = diag( length(ind_j) )
-        #         
-        #         # Tune the proposal covariance for each transition to achieve
-        #         # reasonable acceptance ratios.
-        #         if(ttt %% 30 == 0){
-        #             if(ttt %% 480 == 0){
-        #                 accept[j] = 0
-        #                 
-        #             } else if( accept[j] / (ttt %% 480) < .4 ){ 
-        #                 pscale[j] = (.75^2)*pscale[j]
-        #                 
-        #             } else if( accept[j] / (ttt %% 480) > .5 ){ 
-        #                 pscale[j] = (1.25^2)*pscale[j]
-        #             }
-        #         }
-        #     }
-        #     # -----------------------------------------------------------------------
-        # }
+        for(j in 1:n_group){
+
+            # Propose an update
+            ind_j = group[[j]]
+            proposal = par
+            proposal[ind_j] = rmvnorm( n=1, mean=par[ind_j],sigma=pcov[[j]]*pscale[j])
+
+            # Compute the log density for the proposal
+            log_post = fn_log_post(proposal, par_index, m, n, alpha)
+
+            # Only propose valid parameters during the burnin period
+            if(ttt < burnin){
+                while(!is.finite(log_post)){
+                    print('bad proposal')
+                    proposal = par
+                    proposal[ind_j] = rmvnorm( n=1, mean=par[ind_j],
+                                               sigma=pcov[[j]]*pscale[j])
+                    log_post = fn_log_post(proposal, par_index, m, n, alpha)
+                }
+            }
+
+            # Evaluate the Metropolis-Hastings ratio
+            if( log_post - log_post_prev > log(runif(1,0,1)) ){
+                log_post_prev = log_post
+                par[ind_j] = proposal[ind_j]
+                accept[j] = accept[j] +1
+            }
+            chain[ttt,ind_j] = par[ind_j]
+
+            # Proposal tuning scheme ------------------------------------------------
+            if(ttt < burnin){
+                # During the burnin period, update the proposal covariance in each step
+                # to capture the relationships within the parameters vectors for each
+                # transition.  This helps with mixing.
+                if(ttt == 100)  pscale[j] = 1
+
+                if(100 <= ttt & ttt <= 2000){
+                    temp_chain = chain[1:ttt,ind_j]
+                    pcov[[j]] = cov(temp_chain[ !duplicated(temp_chain),, drop=F])
+
+                } else if(2000 < ttt){
+                    temp_chain = chain[(ttt-2000):ttt,ind_j]
+                    pcov[[j]] = cov(temp_chain[ !duplicated(temp_chain),, drop=F])
+                }
+                if( sum( is.na(pcov[[j]]) ) > 0)  pcov[[j]] = diag( length(ind_j) )
+
+                # Tune the proposal covariance for each transition to achieve
+                # reasonable acceptance ratios.
+                if(ttt %% 30 == 0){
+                    if(ttt %% 480 == 0){
+                        accept[j] = 0
+
+                    } else if( accept[j] / (ttt %% 480) < .4 ){
+                        pscale[j] = (.75^2)*pscale[j]
+
+                    } else if( accept[j] / (ttt %% 480) > .5 ){
+                        pscale[j] = (1.25^2)*pscale[j]
+                    }
+                }
+            }
+            # -----------------------------------------------------------------------
+        }
         # Restart the acceptance ratio at burnin.
         if(ttt == burnin)  accept = rep( 0, n_group)
         

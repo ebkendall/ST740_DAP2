@@ -6,6 +6,8 @@ set.seed(ind)
 
 print(ind)
 
+mod_num = as.numeric(args[2])
+
 # Loading Data   ---------------------------------------------------------------
 library(devtools)
 # install_github("microbiome/microbiome")
@@ -41,29 +43,41 @@ temp_N_i[which_zer0] = temp_N_i[which_zer0] + 1
 
 alpha = sum_Y_i / sum(temp_N_i)
 
-# initial values ---------------------------------------------------------------
-E_theta = alpha / sum(alpha); names(E_theta) = NULL
-
-# prop_Y = Y_mat / colSums(Y_mat)
-# M_i = apply(prop_Y, 2, sd); names(M_i) = NULL
-# M_i = apply(Y_mat, 2, sd); names(M_i) = NULL
-# M_i = log(M_i)
-# mu = mean(M_i); sigma2 = sd(M_i)^2
-
-M_i = rep(0, 112)
-mu = 0; sigma2 = 0.1;
-
-theta = rep(E_theta, n)
-
-par = c(mu, sigma2, M_i, theta)
-names(par) = NULL
-# -----------------------------------------------------------------------------
 
 par_index = list('mu' = 1, 'sigma2' = 2, 'M_i' = (2+1):(2+n),
                  'theta' = (2+n+1):(2+n+m*n))
+par = NULL
+# initial values ---------------------------------------------------------------
+if(mod_num != 2) {
+    load('Model_out/mcmc_out_mod2_1.rda')
+    sub_chain = mcmc_out$chain[18000:19001, ]
+    theta_est = colMeans(sub_chain[,par_index$theta])
+    theta_est_mat = matrix(theta_est, nrow = m, ncol = n)
+    
+    M_i = rep(0, n)
+    for(i in 1:n) {
+        E_theta = mean(theta_est_mat[,i])
+        V_theta = sd(theta_est_mat[,i])^2
+        hold1 = E_theta * (1-E_theta) / V_theta
+        M_i[i] = log((hold1 - 1) / sum(alpha))
+    }
+    
+    mu = mean(M_i); sigma2 = sd(M_i)^2
+    par = c(mu, sigma2, M_i, theta_est)
+    
+} else {
+    E_theta = alpha / sum(alpha); names(E_theta) = NULL
+    M_i = rep(0, 112)
+    mu = 0; sigma2 = 0.1;
+    theta = rep(E_theta, n)
+    par = c(mu, sigma2, M_i, theta)
+}
+
+names(par) = NULL
+# -----------------------------------------------------------------------------
 
 s_time = Sys.time()
 mcmc_out = mcmc_routine(Y_mat, X, par, par_index, steps, burnin, n, m, alpha)
 e_time = Sys.time() - s_time; print(e_time)
 
-save( mcmc_out, file=paste0('Model_out/mcmc_out_mod2_',ind,'.rda'))
+save( mcmc_out, file=paste0('Model_out/mcmc_out_mod', mod_num, '_',ind,'.rda'))
