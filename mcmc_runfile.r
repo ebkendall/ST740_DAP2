@@ -53,9 +53,6 @@ E_theta = alpha / sum(alpha); names(E_theta) = NULL
 M_i = rep(0, 112)
 mu = 0; sigma2 = 0.1;
 
-# Scaling Y_mat
-Y_mat = Y_mat / 100000
-
 theta = rep(E_theta, n)
 
 par = c(mu, sigma2, M_i, theta)
@@ -69,5 +66,4 @@ s_time = Sys.time()
 mcmc_out = mcmc_routine(Y_mat, X, par, par_index, steps, burnin, n, m, alpha)
 e_time = Sys.time() - s_time; print(e_time)
 
-save( mcmc_out, file=paste0('Model_out/post_mcmc_out_dev_FINAL',ind, '_', 
-                            trial_num,'.rda'))
+save( mcmc_out, file=paste0('Model_out/mcmc_out_mod2_',ind,'.rda'))
