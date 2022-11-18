@@ -25,12 +25,19 @@ r_name = rownames(Y)
 c_name = colnames(Y)
 Y_c = c(Y)
 
-n = ncol(Y)
-m = nrow(Y)
-
-Y_mat = matrix(Y_c, nrow=m, ncol=n)
+Y_mat = matrix(Y_c, nrow=130, ncol=112)
 rownames(Y_mat) = r_name
 colnames(Y_mat) = c_name
+
+# Determining importance of variables in the model
+relative_importance = rowSums(Y_mat); names(relative_importance) = NULL
+relative_importance = relative_importance / sum(relative_importance)
+sum(relative_importance < 0.0001)
+important_taxa = which(relative_importance > 0.0001)
+Y_mat = Y_mat[important_taxa, ]
+
+n = ncol(Y_mat)
+m = nrow(Y_mat)
 
 N_i = colSums(Y_mat)
 
@@ -42,6 +49,7 @@ temp_N_i = N_i
 temp_N_i[which_zer0] = temp_N_i[which_zer0] + 1
 
 alpha = sum_Y_i / sum(temp_N_i)
+names(alpha) = NULL
 
 
 par_index = list('mu' = 1, 'sigma2' = 2, 'M_i' = (2+1):(2+n),
@@ -77,7 +85,7 @@ names(par) = NULL
 # -----------------------------------------------------------------------------
 
 s_time = Sys.time()
-mcmc_out = mcmc_routine(Y_mat, X, par, par_index, steps, burnin, n, m, alpha)
+mcmc_out = mcmc_routine(Y_mat, X, par, par_index, steps, burnin, n, m, alpha, mod_num)
 e_time = Sys.time() - s_time; print(e_time)
 
 save( mcmc_out, file=paste0('Model_out/mcmc_out_mod', mod_num, '_',ind,'.rda'))
