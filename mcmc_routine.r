@@ -9,10 +9,6 @@ mcmc_routine = function(Y_mat, X, par, par_index, steps, burnin, n, m, alpha, mo
     
     chain = matrix(0, nrow = steps, ncol = length(par))
     
-    # group = list(c(par_index$M_i[1:10]),c(par_index$M_i[11:20]),c(par_index$M_i[21:30]),
-    #              c(par_index$M_i[31:40]),c(par_index$M_i[41:50]),c(par_index$M_i[51:60]),
-    #              c(par_index$M_i[61:70]),c(par_index$M_i[71:80]),c(par_index$M_i[81:90]),
-    #              c(par_index$M_i[91:100]),c(par_index$M_i[101:112]))
     group = as.list(par_index$M_i)
 
     n_group = length(group)
@@ -22,7 +18,7 @@ mcmc_routine = function(Y_mat, X, par, par_index, steps, burnin, n, m, alpha, mo
     accept = rep( 0, n_group)
     
     # Hyperparameter initialization -------------------------------------------
-    a = 1; b = 1
+    a = 2; b = par[par_index$sigma2]
     mean_mu = par[par_index$mu]
     s2 = 100
     

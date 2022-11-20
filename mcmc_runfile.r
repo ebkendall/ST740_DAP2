@@ -66,7 +66,7 @@ par = NULL
 # initial values ---------------------------------------------------------------
 if(mod_num != 2) {
     load('Model_out/mcmc_out_mod2_3.rda')
-    sub_chain = mcmc_out$chain[18000:19001, ]
+    sub_chain = mcmc_out$chain[4000:5000, ]
     theta_est = colMeans(sub_chain[,par_index$theta])
     theta_est_mat = matrix(theta_est, nrow = m, ncol = n)
     
