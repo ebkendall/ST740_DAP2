@@ -11,18 +11,26 @@ mod_num = as.numeric(args[1])
 # Size of posterior sample from mcmc chains
 n_post = 5000
 # Step number at which the adaptive tuning scheme was frozen
-burnin = 1000
+burnin = 5000
 # Total number of steps the mcmc algorithm is computed for
-steps = 20000
+steps = 10000
 # Matrix row indices for the posterior sample to use for GFF computation
 index_post = (steps - burnin - n_post + 1):(steps - burnin)
 
-labels = c(TeX(r'($\mu$)'), TeX(r'($\sigma^2$)'), 
-           paste0("theta(", 1:130, ", 1)")) 
+m=92; n = 112
+
+labels = NULL
+if(mod_num == 2) {
+    labels = c(TeX(r'($\mu$)'), TeX(r'($\sigma^2$)'), 
+               paste0("theta(", 1:m, ", 1)")) 
+} else {
+    labels = c(TeX(r'($\mu$)'), TeX(r'($\sigma^2$)'), paste0("M(", 1:n, ")"),
+               paste0("theta(", 1:m, ", 1)")) 
+}
+
 index_seeds = c(1:3)
 
 true_par = NULL
-m=130; n = 112
 par_index = list('mu' = 1, 'sigma2' = 2, 'M_i' = (2+1):(2+n),
                  'theta' = (2+n+1):(2+n+m*n))
 
@@ -40,12 +48,12 @@ for(seed in index_seeds){
     ind = ind + 1
     print(paste0(ind, ": ", file_name))
     
-    # Geweke diagnostic information ------------------------------------
-    diagnostic_res = Geweke.Diagnostic(mcmc_out$chain[18000:19000,])
-    print(paste0(length(which(is.nan(diagnostic_res))), " of the ", ncol(mcmc_out$chain), 
-                 " parameters lead to NaN"))
-    diagnostic_res = diagnostic_res[!is.nan(diagnostic_res)]
-    print(mean(abs(diagnostic_res) < 2))
+    # # Geweke diagnostic information ------------------------------------
+    # diagnostic_res = Geweke.Diagnostic(mcmc_out$chain[18000:19000,])
+    # print(paste0(length(which(is.nan(diagnostic_res))), " of the ", ncol(mcmc_out$chain), 
+    #              " parameters lead to NaN"))
+    # diagnostic_res = diagnostic_res[!is.nan(diagnostic_res)]
+    # print(mean(abs(diagnostic_res) < 2))
     
     
     chain_list[[ind]] = mcmc_out$chain[index_post,]
@@ -59,7 +67,13 @@ stacked_chains = do.call( rbind, chain_list)
 pdf(paste0('Plots/trace_plot_mod', mod_num, '.pdf'))
 par(mfrow=c(3, 2))
 lab_ind = 0
-for(r in c(1:2, par_index$theta[1:130])) {
+fo_loop = NULL
+if(mod_num == 2) {
+    fo_loop = c(1:2, par_index$theta[1:m])
+} else {
+    fo_loop = c(1:2, par_index$M_i, par_index$theta[1:m])
+}
+for(r in fo_loop) {
   lab_ind = lab_ind + 1
   # stacked_chains[,r]
   plot( NULL, ylab=NA, main=labels[lab_ind], xlim=c(1,length(index_post)),
