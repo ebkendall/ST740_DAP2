@@ -40,6 +40,8 @@ par_index = list('mu' = 1, 'sigma2' = 2, 'M_i' = (2+1):(2+n),
 chain_list = vector(mode = "list", length = length(index_seeds))
 
 ind = 0
+dic = NULL
+waic = NULL
 
 for(seed in index_seeds){
   file_name = paste0('Model_out/mcmc_out_mod', mod_num, '_', toString(seed),'.rda')
@@ -47,6 +49,10 @@ for(seed in index_seeds){
     load(file_name)
     ind = ind + 1
     print(paste0(ind, ": ", file_name))
+    
+    # DIC and WAIC
+    dic = c(dic, mcmc_out$DIC$DIC)
+    waic = c(waic, mcmc_out$WAIC$WAIC)
     
     # Geweke diagnostic information ------------------------------------
     diagnostic_res = Geweke.Diagnostic(mcmc_out$chain[4000:5000,])
@@ -59,6 +65,9 @@ for(seed in index_seeds){
     rm(mcmc_out)
   }
 }
+
+print("DIC"); print(mean(dic))
+print("WAIC"); print(mean(waic))
 
 stacked_chains = do.call( rbind, chain_list)
 # png(paste0('Plots/trace_plot_dap2_Mi0.png'), width = 1200, height = 1200)
@@ -116,4 +125,73 @@ if (mod_num == 1) {
     }
     dev.off()
 }
+
+
+# Answering the model comparison question -------------------------------------
+if (mod_num == 1) {
+    library(devtools)
+    # install_github("microbiome/microbiome")
+    library(microbiome)
+    data(dietswap)
+    Y_all <- otu_table(dietswap)    # all data
+    X_all <- sample_data(dietswap)
+    Y <- Y_all[,X_all[,7]==1]       # Extract baseline data
+    X <- X_all[X_all[,7]==1,3]
+    
+    delta_j = matrix(nrow = nrow(stacked_chains), ncol = m)
+    x_1 = which(X == "AAM")
+    x_2 = which(X == "AFR")
+    print(nrow(stacked_chains))
+    for(i in 1:nrow(stacked_chains)) {
+        theta_temp = matrix(stacked_chains[i, par_index$theta], ncol = n, nrow = m)
+        
+        theta_1 = theta_temp[,x_1]
+        theta_2 = theta_temp[,x_2]
+        
+        dj_vec_1 = rowSums(theta_1) / length(x_1)
+        dj_vec_2 = rowSums(theta_2) / length(x_2)
+        
+        delta_j[i, ] = c(dj_vec_1 - dj_vec_2)
+    }
+
+    load('Model_out/taxa_names.rda')
+    cred_set = data.frame("taxa" = taxa_names, "lower" = rep(NA, m), "upper" = rep(NA, m))
+    pdf(paste0('Plots/delta_', mod_num, '.pdf'))
+    par(mfrow=c(3, 2))
+    for(r in 1:m) {
+        
+        parMean = round( mean(delta_j[,r]), 4)
+        parMedian = round( median(delta_j[,r]), 4)
+        upper = quantile( delta_j[,r], prob=.975)
+        lower = quantile( delta_j[,r], prob=.025)
+        
+        hist( delta_j[,r], breaks=sqrt(nrow(delta_j)), ylab=NA, main=NA,
+              freq=F, xlab=paste0('Mean = ',toString(parMean),
+                                  ' Median = ',toString(parMedian)))
+        abline( v=upper, col='red', lwd=2, lty=2)
+        abline( v=lower, col='purple', lwd=2, lty=2)
+        
+        cred_set$lower[r] = lower
+        cred_set$upper[r] = upper
+        
+        print(paste0(r, ": Contains 0? ", (0 > lower & 0 < upper)))
+    }
+    dev.off()
+    
+    png("Plots/taxa_cred_set.png", width = 1600, height = 700)
+    col_seq = rep(1, m)
+    col_seq[which(cred_set$lower < 0 & cred_set$upper > 0)] = 2
+    ggplot(cred_set, aes(x = taxa)) + 
+        geom_errorbar(aes(ymin = lower, ymax = upper), color = factor(col_seq), position = position_dodge(1), size = 0.5, width=0.8) +
+        scale_x_discrete(labels = taxa_names) +
+        scale_colour_manual(values=col_seq) + 
+        labs(title="95% Credible Sets", x ="", y="") +
+        ylim(-0.03, 0.03) +
+        theme(legend.position = "none", axis.text.x = element_text(angle = 90, hjust = 1, colour = col_seq))
+    dev.off()
+    
+    
+}
+
+
 

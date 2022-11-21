@@ -47,6 +47,9 @@ Y_mat = Y_mat[-min_list, ]
 n = ncol(Y_mat)
 m = nrow(Y_mat)
 
+taxa_names = rownames(Y_mat)
+save(taxa_names, file = 'Model_out/taxa_names.rda')
+
 N_i = colSums(Y_mat)
 
 # alpha calc
@@ -65,24 +68,43 @@ par_index = list('mu' = 1, 'sigma2' = 2, 'M_i' = (2+1):(2+n),
 par = NULL
 # initial values ---------------------------------------------------------------
 if(mod_num != 2) {
-    load('Model_out/mcmc_out_mod2_3.rda')
-    sub_chain = mcmc_out$chain[4000:5000, ]
-    theta_est = colMeans(sub_chain[,par_index$theta])
-    theta_est_mat = matrix(theta_est, nrow = m, ncol = n)
-    
-    M_i = rep(0, n)
-    for(i in 1:n) {
-        E_theta = mean(theta_est_mat[,i])
-        V_theta = sd(theta_est_mat[,i])^2
-        hold1 = E_theta * (1-E_theta) / V_theta
-        M_i[i] = log((hold1 - 1) / sum(alpha))
+    if(mod_num == 1) {
+        load('Model_out/mcmc_out_mod2_3.rda')
+        sub_chain = mcmc_out$chain[4000:5000, ]
+        theta_est = colMeans(sub_chain[,par_index$theta])
+        theta_est_mat = matrix(theta_est, nrow = m, ncol = n)
+        
+        M_i = rep(0, n)
+        for(i in 1:n) {
+            E_theta = mean(theta_est_mat[,i])
+            V_theta = sd(theta_est_mat[,i])^2
+            hold1 = E_theta * (1-E_theta) / V_theta
+            M_i[i] = log((hold1 - 1) / sum(alpha))
+        }
+        
+        mu = mean(M_i); sigma2 = sd(M_i)^2
+        par = c(mu, sigma2, M_i, theta_est)
+    } else { # Model (3)
+        mu = 0; sigma2 = 0.1;
+        theta = rep(alpha, n);
+        M_i = rep(Inf, 112)
+        par = c(mu, sigma2, M_i, theta)
+        
+        print("AIC")
+        dic_calc = 0
+        for(www in 1:n) {
+            x_temp = Y_mat[,www]
+            if(sum(x_temp == 0) > 0) x_temp = x_temp + 1
+            dic_calc = dic_calc + log(dmultinom(x = x_temp, prob = alpha))
+        }
+        aic = -2 * dic_calc + 2*length(par_index$theta)
+        print(aic)
+        return(0)
     }
     
-    mu = mean(M_i); sigma2 = sd(M_i)^2
-    par = c(mu, sigma2, M_i, theta_est)
     
 } else {
-    E_theta = alpha / sum(alpha); names(E_theta) = NULL
+    E_theta = alpha; names(E_theta) = NULL
     M_i = rep(0, 112)
     mu = 0; sigma2 = 0.1;
     theta = rep(E_theta, n)
@@ -97,3 +119,36 @@ mcmc_out = mcmc_routine(Y_mat, X, par, par_index, steps, burnin, n, m, alpha, mo
 e_time = Sys.time() - s_time; print(e_time)
 
 save( mcmc_out, file=paste0('Model_out/mcmc_out_mod', mod_num, '_',ind,'.rda'))
+
+
+# Checking Model Fit ----------------------------------------------------------
+summary_stats = function(Y) {
+    stats        <- c(rowMeans(Y), apply(Y, 1, sd), rowMeans(Y / colSums(Y)))
+    return(stats)
+}
+
+if (mod_num == 1) {
+    D0 = summary_stats(Y_mat)
+    
+    D <- NULL
+    for(iter in 1:5000){
+        print(iter)
+        Y = matrix(nrow = nrow(Y_mat), ncol = ncol(Y_mat))
+        theta = matrix(mcmc_out$chain[iter, par_index$theta], nrow = nrow(Y_mat), ncol = ncol(Y_mat))
+        for(i in 1:n) {
+            Y[,i] = rmultinom(n = 1, size = sum(Y_mat[,i]), prob = theta[,i])
+        }
+        D <- rbind(D,summary_stats(Y))
+    }
+    significance = rep(NA, ncol(D))
+    for(j in 1:ncol(D)){
+        pval <- round(mean(D0[j]>D[,j]),3)
+        xlim <- quantile(D[,j],c(0.02,0.98))
+        ex   <- (D[,j] < xlim[1]) | (D[,j]>xlim[2])
+        hist(D[!ex,j],breaks=50,
+             xlab=names(D0)[j],
+             main=paste("p-value = ",pval))
+        abline(v=D0[j],col=2,lwd=2)
+        significance[j] = pval
+    }
+}

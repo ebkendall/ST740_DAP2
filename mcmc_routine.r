@@ -10,8 +10,12 @@ mcmc_routine = function(Y_mat, X, par, par_index, steps, burnin, n, m, alpha, mo
     chain = matrix(0, nrow = steps, ncol = length(par))
     
     group = as.list(par_index$M_i)
-
     n_group = length(group)
+    
+    # Model selection values
+    dev = rep(0, steps)
+    logpdf1 = matrix(ncol = n, nrow = steps - burnin)
+    curll = NULL
     
     pcov = list();	for(j in 1:n_group)  pcov[[j]] = diag(length(group[[j]]))
     pscale = rep( 0.0001, n_group)
@@ -122,6 +126,16 @@ mcmc_routine = function(Y_mat, X, par, par_index, steps, burnin, n, m, alpha, mo
             }
         }
         
+        
+        # Model selection and evaluation
+        curll = full_log_post(chain[ttt, ], par_index, m, n, alpha, Y_mat, 1:n, mod_num)
+        dev[ttt]      <- -2*curll
+        if(ttt>burnin){
+            for(www in 1:n_group) {
+                logpdf1[ttt-burnin, www] = full_log_post(chain[ttt, ], par_index, m, n, alpha, Y_mat, www, mod_num)
+            }
+        }
+        
         # Restart the acceptance ratio at burnin.
         if(ttt == burnin)  accept = rep( 0, n_group)
         
@@ -129,9 +143,21 @@ mcmc_routine = function(Y_mat, X, par, par_index, steps, burnin, n, m, alpha, mo
     }
     # ---------------------------------------------------------------------------
     
+    # DIC computations
+    dbar <- mean(dev[burnin:steps])
+    dhat <- -2*full_log_post(colMeans(chain[burnin:steps,]), par_index, m, n, alpha, Y_mat, 1:n, mod_num)
+    pD   <- dbar-dhat
+    DIC  <- list(dbar=dbar,dhat=dhat,pD=pD,DIC=dbar+pD) 
+    
+    # WAIC computations
+    mn_logpdf  <- colMeans(logpdf1)
+    var_logpdf <- apply(logpdf1, 2, sd)^2
+    pW         <- sum(var_logpdf)
+    WAIC       <- list(WAIC=-2*sum(mn_logpdf)+2*pW,pW=pW)
+    
     print(accept/(steps-burnin))
     return(list( chain=chain[burnin:steps,], accept=accept/(steps-burnin),
-                 pscale=pscale, pcov=pcov))
+                 pscale=pscale, pcov=pcov, DIC = DIC, WAIC = WAIC))
 }
 # -----------------------------------------------------------------------------
 
@@ -167,6 +193,28 @@ fn_log_post = function(par, par_index, m, n, alpha, ind_j_adj) {
         dir_temp = ddirichlet(x = theta_mat[,i], alpha = exp(M_i[i])*alpha)
         norm_temp = dnorm(x = M_i[i], mean = mu, sd = sqrt(sigma2))
         log_post_temp = log_post_temp + log(dir_temp) + log(norm_temp)
+    }
+    return(log_post_temp)
+}
+
+full_log_post = function(par, par_index, m, n, alpha, Y_mat, loop_it, mod_num) {
+    log_post_temp = 0
+    theta_mat = matrix(par[par_index$theta], nrow = m, ncol = n)
+    M_i = par[par_index$M_i]
+    mu = par[par_index$mu]
+    sigma2 = par[par_index$sigma2]
+    for(i in loop_it) {
+        y_temp = dmultinom(x = Y_mat[,i], prob = theta_mat[,i])
+        dir_temp = ddirichlet(x = theta_mat[,i], alpha = exp(M_i[i])*alpha)
+        
+        if (mod_num == 2) {
+            log_post_temp = log_post_temp + log(y_temp) + log(dir_temp)
+        } else {
+            norm_temp = dnorm(x = M_i[i], mean = mu, sd = sqrt(sigma2))
+            log_post_temp = log_post_temp + log(y_temp) + log(dir_temp) + log(norm_temp)
+        }
+        
+        
     }
     return(log_post_temp)
 }
